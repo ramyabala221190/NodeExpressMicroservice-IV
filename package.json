@@ -4,23 +4,28 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-   "local": "set DOTENV_CONFIG_PATH=./local.env&&nodemon",
-   "start": "tsc && node dist/app.js"
+    "local": "set DOTENV_CONFIG_PATH=./local.env&&nodemon",
+    "start": "tsc && node dist/app.js",
+    "prelocal": "swagger-cli bundle node_modules/@ramyabala221190/api-contracts/dist/openapi/order/openapi.json -o bundled-order.json -t json"
   },
-    "dependencies": {
+  "dependencies": {
+    "@ramyabala221190/api-contracts": "^1.0.2",
     "axios": "^1.11.0",
     "cross-env": "^10.1.0",
     "express": "^5.1.0",
     "mongoose": "^8.18.0",
     "morgan": "^1.10.1",
+    "swagger-ui-express": "^5.0.1",
     "winston": "^3.17.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.3",
     "@types/morgan": "^1.9.10",
     "@types/node": "^24.3.0",
+    "@types/swagger-ui-express": "^4.1.8",
     "dotenv": "^17.2.1",
     "nodemon": "^3.1.10",
+    "swagger-cli": "^4.0.4",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.2"
   },

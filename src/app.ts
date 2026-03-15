@@ -5,6 +5,8 @@ import { join } from 'path';
 import morganMiddleWare from './logger/morganLogger';
 import winstonLogger from './logger/winstonLogger';
 import userRouter from './routes/orderRoute';
+import swaggerUI from 'swagger-ui-express';
+import { readFileSync } from 'fs';
 
 //custom error class for creating custom error messages
 export class CustomError extends Error{
@@ -13,9 +15,24 @@ export class CustomError extends Error{
       super(message);
       this.statusCode=statusCode;
     }
-  }
+}
+
+export class ExplicitError extends CustomError{}
 
 const app=express();
+
+if (process.env.APP_ENV !== "prod") {
+  //we dont swagger in prod
+  const orderJSONPath=join(`${process.cwd()}`,'bundled-order.json');
+  const orderJSON= readFileSync(orderJSONPath,{encoding:'utf8'});
+  app.use(
+    '/api-docs',
+    swaggerUI.serve,
+    swaggerUI.setup(JSON.parse(orderJSON), { explorer: true, swaggerOptions: {
+    supportedSubmitMethods: ['get'] // Disables the "Execute" button for POST, PUT, DELETE
+  } })
+  )
+}
 
 app.use(morganMiddleWare);
 

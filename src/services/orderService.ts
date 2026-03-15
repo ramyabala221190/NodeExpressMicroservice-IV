@@ -1,7 +1,8 @@
 import mongoose from "mongoose";
-import { CustomError } from "../app";
-import orderModel, { OrderModel, ProductModel } from "../models/orderModel";
+import { CustomError, ExplicitError } from "../app";
+import orderModel, { OrderDocument } from "../models/orderModel";
 import communicatorService from "./communicatorService";
+import { OrderPayload, OrderResponse, ProductModel } from "@ramyabala221190/api-contracts";
 
 class UserService   {
 
@@ -9,31 +10,33 @@ class UserService   {
     console.log("instance for User Service created")
   }
 
-async getOrderDetailService(userName:string):Promise<OrderModel[]|null>{
+async getOrderDetailService(userName:string):Promise<OrderResponse[]>{
     try{
+    if(userName){
     const userDetail=await communicatorService.fetchUserDetailForUserName(userName);
-    const orders= await orderModel.find({user:userDetail._id});
+    const orders:OrderDocument[]= await orderModel.find({user:userDetail._id});
     if(orders.length){
-    let productObjectIdList= orders.reduce((acc:mongoose.Types.ObjectId[],curr)=>{
-      let idList=curr.products.map(x=>x.id);
+    let productObjectIdList= orders.reduce((acc:string[],curr)=>{
+      let idList=curr.products.map(x=>x.id.toString());
       acc=acc.concat(idList);
       return acc;
-    },[])
+    },[]);
+    console.log(productObjectIdList);
     const productDetail= await communicatorService.fetchProductDetailForObjectId(productObjectIdList);
     return orders.map((orderDetail)=>{
     let productInOrderList= productDetail.filter((product)=>{
-      if(orderDetail.products.find(x=>x.id == product._id)){
+      if(orderDetail.products.find(x=>x.id.toString() == product._id)){
         return product;
       }
     })
     return {
-      _id: orderDetail._id,
-      cartId: orderDetail.cartId as mongoose.Types.ObjectId,
+      _id: orderDetail._id.toString(),
+      cartId: orderDetail.cartId.toString(),
       user: userDetail._id,
       status: orderDetail.status,
       totalCost: orderDetail.totalCost as number,
       products: productInOrderList.map(x=>{
-        let product=orderDetail.products.find(y=>{ return y.id == x?._id});
+        let product=orderDetail.products.find(y=>{ return y.id.toString() == x._id});
         return {
           product: x as ProductModel,
           qty: product?.qty as number ,
@@ -47,16 +50,29 @@ async getOrderDetailService(userName:string):Promise<OrderModel[]|null>{
     else{
       return [];
     }
+  }
+  else{
+    throw new ExplicitError("Username not valid",400);
+  }
     }
     catch(err){
+      console.log(err);
+      if(err instanceof ExplicitError){
+        throw err;
+      }
        throw new CustomError(`Error fetching order detail:${err}`,500);
     }
 }
 
-async updateOrderStatusService(orderId:string):Promise<OrderModel|null>{
+async updateOrderStatusService(payload:{orderId:string,productList:{productId:number,qty:number}[]}):Promise<void>{
+  let session!:mongoose.ClientSession;
   try{
-   return orderModel.findOneAndUpdate({
-    _id: new mongoose.Types.ObjectId(orderId) //convert the string into ObjectId
+   session = await mongoose.startSession();
+   session.startTransaction();
+   await communicatorService.decrementProductStock(payload.productList);
+   const updatedOrder: OrderDocument|null=await orderModel.findOneAndUpdate(
+   {
+    _id: new mongoose.Types.ObjectId(payload.orderId) //convert the string into ObjectId
    },
    {
     $set:{
@@ -64,21 +80,35 @@ async updateOrderStatusService(orderId:string):Promise<OrderModel|null>{
     }
    },
    {
-    new:true
+    new:true, //returns updated doc and not the old one
+    runValidators:true
    }
   )
+  if(updatedOrder == null){
+    throw new ExplicitError("Order not found",404);
+  }
+  await session.commitTransaction();
   }
   catch(err){
+    session?.abortTransaction();
+    if(err instanceof ExplicitError){
+      throw err;
+    }
+    else{
     throw new CustomError(`Error updating order status:${err}`,500);
+    }
+  }
+  finally{
+    session?.endSession();
   }
 }
 
-async createOrderService(orderPayload:OrderModel){
+async createOrderService(orderPayload:OrderPayload):Promise<void>{
   try{
-     return await orderModel.insertOne(orderPayload); 
+     await orderModel.create(orderPayload); 
   }
   catch(err){
-           throw new CustomError(`Error creating order:${err}`,500);
+      throw new CustomError(`Error creating order:${err}`,500);
   }
 }
 

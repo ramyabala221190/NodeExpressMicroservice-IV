@@ -1,6 +1,6 @@
+import { ProductModel, UserModel } from "@ramyabala221190/api-contracts";
 import axios from "axios";
-import { ProductModel, UserModel } from "../models/orderModel";
-import mongoose from "mongoose";
+import { MongooseBulkWriteResult } from "mongoose";
 
 class CommunicatorService{
     constructor(){
@@ -15,8 +15,12 @@ class CommunicatorService{
       return (await axios.get(`http://${this.userUrl}/user/${username}`)).data.userDetail;
    }
 
-    async fetchProductDetailForObjectId(productObjectIds: mongoose.Types.ObjectId[]): Promise<ProductModel[]> {
+    async fetchProductDetailForObjectId(productObjectIds: string[]): Promise<ProductModel[]> {
       return (await axios.post(`http://${this.productUrl}/products/internal/ids`, { productIds: productObjectIds })).data.product;
+   }
+
+   async decrementProductStock(payload:{productId:number,qty:number}[]):Promise<MongooseBulkWriteResult>{
+      return (await axios.put(`http://${this.productUrl}/product/stock/`,{productList:payload})).data;
    }
 
 }
